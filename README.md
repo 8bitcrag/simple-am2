@@ -13,6 +13,20 @@ Currently this implementaion is focused on audio only and the main goals of this
 **Entendable** - Although still limited to what functionality the wrappers expose (for threading reasons), it should be possible to compose and use the functionality in any way you need.
 
 ## Installation
-Download the .aar from releases and add it as a module to your app.
+Download the latest `.aar` from releases and add it as a module to your app. Instructions for Android Studio can be found [here](https://developer.android.com/studio/projects/android-library#AddDependency).
 
 ## Usage
+An instance of the player is created usin the Builder class that accompanies it, a basic example might be:
+```java
+@Override
+public void onCreate() {
+  super.onCreate();
+  
+  // ... set up
+  
+  myPlayer = new SimpleAudioPlayer.Builder(this)
+                  .setAudioFocusHandler(plyr -> new MyAudioFocusHandler(this, plyr))
+                  .setCallbacks(executor, myCallbacks)
+                  .build();
+}
+```
