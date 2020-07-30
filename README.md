@@ -22,7 +22,7 @@ For the most part usage will be the same as [MediaPlayer](https://developer.andr
 Download the latest `.aar` from releases and add it as a module to your app. Instructions for Android Studio can be found [here](https://developer.android.com/studio/projects/android-library#AddDependency).
 
 ## Creation
-An instance of the player is created usin the Builder class that accompanies it, a basic example might be:
+An instance of the player is created using the Builder class that accompanies it, a basic example might be:
 ```java
 public void onCreate() {
   
@@ -53,7 +53,7 @@ This mimics the behavior of the original API to keep it consistent.
 You can use [SessionPlayer.registerPlayerCallback](https://developer.android.com/reference/androidx/media2/common/SessionPlayer#registerPlayerCallback(java.util.concurrent.Executor,%20androidx.media2.common.SessionPlayer.PlayerCallback)) as normal, the builder simply provides `setCallbacks` as a convenience.
 
 ## Usage
-Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would normally have one. Usually you would be using `MediaPlayer` which does have some differences:
+Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would normally have a `SessionPlayer`. Usually you would be using `MediaPlayer` which does have some differences:
 
 *DRM handling* - Currently Simple-am2 doesn't handle drm sessions.
 
@@ -78,9 +78,9 @@ Each task is processed in a queue, and you can chain tasks together using `flatM
 
 The `foreach` function signals the final operation to be carried out at the end of the chain, and returns a future of the final result.
 
-The `flatMap` function will return another task that gets put on the queue after the first one has completed; a contrived example sets the volume to full after playing might be:
+The `flatMap` function will return another task that gets put on the queue after the first one has completed; a contrived example that sets the volume to full after playing might be:
 ```java
-public ListenableFuture<PlayerResult> test() {
+public ListenableFuture<PlayerResult> playAndFullVolume() {
   return taskCoordinator.play()
     .flatMap((int status, MediaItem item) -> taskCoordinator.setVolume(1f))
     .foreach(
