@@ -5,6 +5,7 @@ import android.content.Context;
 import android.net.Uri;
 import android.util.Log;
 
+import androidx.annotation.RestrictTo;
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.UriMediaItem;
 
@@ -28,6 +29,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
+
+@RestrictTo(LIBRARY_GROUP_PREFIX)
 public class MediaSourceManager {
 
   private final String logTag = "SMP2: MediaSourceManager";

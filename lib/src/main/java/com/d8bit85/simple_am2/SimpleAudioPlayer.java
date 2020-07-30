@@ -14,9 +14,9 @@ import androidx.media2.common.MediaItem;
 import androidx.media2.common.MediaMetadata;
 import androidx.media2.common.SessionPlayer;
 
+import com.d8bit85.simple_am2.internal.TaskCoordinator;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import com.d8bit85.simple_am2.internal.TaskCoordinator;
 
 import java.util.HashMap;
 import java.util.List;
@@ -34,18 +34,18 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   private static final String logTag = "OPT/ SMP2: SimpleAudioPlayer";
 
   // ExoPlayer related
-  private MediaMetadata playlistMetaData;
-  private int repeatMode;
-  private int shuffleMode;
-  private int state;
-  private int currentIndex;
-  private int currentSize;
-  private Map<MediaItem, Integer> bufferingStates = new HashMap<>();
-  private AudioFocusHandler audioFocusHandler;
+  protected MediaMetadata playlistMetaData;
+  protected int repeatMode;
+  protected int shuffleMode;
+  protected int state;
+  protected int currentIndex;
+  protected int currentSize;
+  protected Map<MediaItem, Integer> bufferingStates = new HashMap<>();
+  protected AudioFocusHandler audioFocusHandler;
 
   // Thread related
-  private TaskCoordinator taskCoordinator;
-  private final Object lockForState;
+  protected TaskCoordinator taskCoordinator;
+  protected final Object lockForState;
 
   SimpleAudioPlayer(Context context) {
     Log.d(logTag, "constructor");
@@ -84,7 +84,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
    * controller connected to the session).
    * @param notifier SessionPlayerCallbackNotifier that wraps the call to the specified callback.
    */
-  void notifySessionPlayerCallback(final SimpleAudioPlayer.SessionPlayerCallbackNotifier notifier) {
+  protected void notifySessionPlayerCallback(final SimpleAudioPlayer.SessionPlayerCallbackNotifier notifier) {
     List<Pair<PlayerCallback, Executor>> callbacks = getCallbacks();
     for (Pair<PlayerCallback, Executor> pair : callbacks) {
       final PlayerCallback callback = pair.first;
@@ -98,7 +98,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
    * when this is triggered.
    * @param newState int of the state to change to
    */
-  private void changeState(int newState) {
+  protected void changeState(int newState) {
     synchronized (lockForState) {
       state = newState;
       notifySessionPlayerCallback(callback -> callback.onPlayerStateChanged(this, state));
@@ -136,7 +136,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     Log.d(logTag, "play!");
 
     if (audioFocusHandler == null || audioFocusHandler.onPlay()) {
-      return taskCoordinator.play((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PLAYING));
+      return taskCoordinator.play()
+        .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PLAYING));
     }
 
     SettableFuture<PlayerResult> fut = SettableFuture.create();
@@ -147,22 +148,22 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
   public @NonNull ListenableFuture<PlayerResult> pause() {
     Log.d(logTag, "pause");
-    return taskCoordinator.pause((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+    return taskCoordinator.pause()
+      .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> prepare() {
     Log.d(logTag, "prepare");
-    return taskCoordinator.prepare((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+    return taskCoordinator.prepare()
+      .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> seekTo(long position) {
     Log.d(logTag, "seekTo");
-    return taskCoordinator.seekTo(
-      position,
-      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position))
-    );
+    return taskCoordinator.seekTo(position)
+      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position)));
   }
 
 
@@ -171,10 +172,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
   public @NonNull ListenableFuture<PlayerResult> setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
     Log.d(logTag, "setAudioattributes");
-    return taskCoordinator.setAudioAttributes(
-      attributes,
-      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onAudioAttributesChanged(this, attributes))
-    );
+    return taskCoordinator.setAudioAttributes(attributes)
+      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onAudioAttributesChanged(this, attributes)));
   }
 
 
@@ -224,9 +223,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     playlistMetaData = metadata;
     currentSize = list.size();
 
-    return taskCoordinator.setPlaylist(
-      list,
-      (int status, MediaItem item) -> {
+    return taskCoordinator.setPlaylist(list)
+      .foreach((int status, MediaItem item) -> {
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, list, metadata));
         onTrackChanged(item, 0);
       }
@@ -243,19 +241,15 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     playlistMetaData = null;
     currentSize = 1;
 
-    return taskCoordinator.setMediaItem(
-      item,
-      (int status, MediaItem mitem) -> onTrackChanged(item, 0)
-    );
+    return taskCoordinator.setMediaItem(item)
+      .foreach((int status, MediaItem mitem) -> onTrackChanged(item, 0));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> addPlaylistItem(int index, @NonNull MediaItem item) {
     int i = Math.min(index, currentSize); // if index is greater than current size, put item on the end
-    return taskCoordinator.addPlaylistItem(
-      i,
-      item,
-      (int status, MediaItem mitem) -> {
+    return taskCoordinator.addPlaylistItem(i, item)
+      .foreach((int status, MediaItem mitem) -> {
         currentSize++;
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData));
       });
@@ -263,9 +257,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> removePlaylistItem(@IntRange(from = 0) int index) {
-    return taskCoordinator.removePlaylistItem(
-      index,
-      (int status, MediaItem item) -> {
+    return taskCoordinator.removePlaylistItem(index)
+      .foreach((int status, MediaItem item) -> {
         currentSize--;
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData));
       });
@@ -273,41 +266,33 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> replacePlaylistItem(int index, @NonNull MediaItem item) {
-    return taskCoordinator.replacePlaylistItem(
-      index,
-      item,
-      (int status, MediaItem mitem) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
+    return taskCoordinator.replacePlaylistItem(index, item)
+      .foreach((int status, MediaItem mitem) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> movePlaylistItem(int from, int to) {
-    return taskCoordinator.movePlaylistItem(
-      to,
-      from,
-      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
+    return taskCoordinator.movePlaylistItem(to, from)
+      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToPreviousPlaylistItem() {
-    return taskCoordinator.skipToPreviousPlaylistItem(
-      (int status, MediaItem item) -> {}
-    );
+    return taskCoordinator.skipToPreviousPlaylistItem()
+      .foreach((int status, MediaItem item) -> {});
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToNextPlaylistItem() {
-    return taskCoordinator.skipToNextPlaylistItem(
-      (int status, MediaItem item) -> {}
-    );
+    return taskCoordinator.skipToNextPlaylistItem()
+      .foreach((int status, MediaItem item) -> {});
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToPlaylistItem(@IntRange(from = 0) int index) {
     Log.d(logTag, "skip to " + index);
-    return taskCoordinator.skipToPlaylistItem(
-      index,
-      (int status, MediaItem item) -> {}
-    );
+    return taskCoordinator.skipToPlaylistItem(index)
+      .foreach((int status, MediaItem item) -> {});
   }
 
 
@@ -322,9 +307,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
   public @NonNull ListenableFuture<PlayerResult> setRepeatMode(@RepeatMode int mode) {
     repeatMode = (mode == SessionPlayer.REPEAT_MODE_GROUP) ? 2 : mode;
-    return taskCoordinator.setRepeatMode(
-      repeatMode,
-      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onRepeatModeChanged(this, repeatMode)));
+    return taskCoordinator.setRepeatMode(repeatMode)
+      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onRepeatModeChanged(this, repeatMode)));
   }
 
 
@@ -332,10 +316,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     if (mode != shuffleMode) {
       shuffleMode = mode;
       boolean enable = shuffleMode != SessionPlayer.SHUFFLE_MODE_NONE;
-      return taskCoordinator.setShuffleMode(
-        enable,
-        (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onShuffleModeChanged(this, shuffleMode))
-      );
+      return taskCoordinator.setShuffleMode(enable)
+        .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onShuffleModeChanged(this, shuffleMode)));
     }
 
     SettableFuture<PlayerResult> fut = SettableFuture.create();
@@ -413,10 +395,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> setVolume(float volume) {
-    return taskCoordinator.setVolume(
-      volume,
-      (int status, MediaItem item) -> {}
-    );
+    return taskCoordinator.setVolume(volume).foreach((int status, MediaItem item) -> {});
   }
 
   public float getVolume() {
