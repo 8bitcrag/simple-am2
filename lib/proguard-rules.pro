@@ -20,4 +20,4 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
--keep class com.d8bit85.simple_am2.* {*;}
+-keep class com.eightbit85.simple_am2.* {*;}

@@ -1,4 +1,4 @@
-package com.d8bit85.simple_am2.internal;
+package com.eightbit85.simple_am2.internal;
 
 import android.content.Context;
 import android.os.Looper;

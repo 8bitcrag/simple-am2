@@ -1,4 +1,4 @@
-package com.d8bit85.simple_am2;
+package com.eightbit85.simple_am2;
 
 
 import android.content.Context;
@@ -16,8 +16,8 @@ import androidx.media2.common.MediaMetadata;
 import androidx.media2.common.SessionPlayer;
 import androidx.media2.player.MediaPlayer2;
 
-import com.d8bit85.simple_am2.internal.ExoWrapperFactory;
-import com.d8bit85.simple_am2.internal.TaskCoordinator;
+import com.eightbit85.simple_am2.internal.ExoWrapperFactory;
+import com.eightbit85.simple_am2.internal.TaskCoordinator;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 

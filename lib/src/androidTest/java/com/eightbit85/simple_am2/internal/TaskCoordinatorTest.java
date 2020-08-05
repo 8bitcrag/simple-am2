@@ -1,4 +1,4 @@
-package com.d8bit85.simple_am2.internal;
+package com.eightbit85.simple_am2.internal;
 
 import android.content.Context;
 import android.os.Looper;
@@ -20,7 +20,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static androidx.media2.player.MediaPlayer2.MEDIA_ERROR_UNKNOWN;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;

@@ -1,4 +1,4 @@
-package com.d8bit85.simple_am2.internal;
+package com.eightbit85.simple_am2.internal;
 
 
 import android.content.Context;
@@ -26,7 +26,7 @@ import java.util.List;
 
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
 import static androidx.media2.player.MediaPlayer2.MEDIA_ERROR_UNKNOWN;
-
+@RestrictTo(LIBRARY_GROUP_PREFIX)
 public class ExoPlayerWrapper {
 
   interface WrapperListener {

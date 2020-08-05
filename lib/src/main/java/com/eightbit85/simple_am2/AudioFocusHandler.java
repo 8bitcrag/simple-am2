@@ -1,4 +1,4 @@
-package com.d8bit85.simple_am2;
+package com.eightbit85.simple_am2;
 
 public interface AudioFocusHandler {
 
