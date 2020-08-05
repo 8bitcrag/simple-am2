@@ -27,7 +27,6 @@ import java.util.List;
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
 import static androidx.media2.player.MediaPlayer2.MEDIA_ERROR_UNKNOWN;
 
-@RestrictTo(LIBRARY_GROUP_PREFIX)
 public class ExoPlayerWrapper {
 
   interface WrapperListener {

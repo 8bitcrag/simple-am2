@@ -14,6 +14,7 @@ import androidx.media2.common.MediaItem;
 import androidx.media2.common.MediaMetadata;
 import androidx.media2.common.SessionPlayer;
 
+import com.d8bit85.simple_am2.internal.ExoWrapperFactory;
 import com.d8bit85.simple_am2.internal.TaskCoordinator;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -47,10 +48,10 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   protected TaskCoordinator taskCoordinator;
   protected final Object lockForState;
 
-  SimpleAudioPlayer(Context context) {
+  SimpleAudioPlayer(@NonNull Context context) {
     Log.d(logTag, "constructor");
 
-    taskCoordinator = new TaskCoordinator(context.getApplicationContext(), this);
+    taskCoordinator = new TaskCoordinator(context.getApplicationContext(), this, ExoWrapperFactory.getDefaultFactory());
 
     lockForState = new Object();
 
@@ -133,7 +134,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   // SessionPlayer Implementation
 
   public @NonNull ListenableFuture<PlayerResult> play() {
-    Log.d(logTag, "play!");
+    Log.d(logTag, "play! upd");
 
     if (audioFocusHandler == null || audioFocusHandler.onPlay()) {
       return taskCoordinator.play()

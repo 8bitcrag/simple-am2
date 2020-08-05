@@ -75,7 +75,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   private static final int POLL_BUFFER_INTERVAL_MS = 1000;
 
-  public TaskCoordinator(Context context, BufferListener listener) {
+  public TaskCoordinator(Context context, BufferListener listener, ExoWrapperFactory ExoFactory) {
     Log.d(logTag, "constructor");
     // Thread related
     handlerThread = new HandlerThread("SimpleAudioPlayer");
@@ -87,9 +87,8 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     taskQueue = new ArrayDeque<>();
     tokenForBufferPolling = new PollBufferRunnable();
 
-
     // ExoPlayer related
-    exoplayer = new ExoPlayerWrapper(context, handlerThread.getLooper(), this);
+    exoplayer = ExoFactory.getWrapper(context, handlerThread.getLooper(), this);
     bufferListener = listener;
 
     // Locks
@@ -458,12 +457,11 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   @Override
   public void onPrepared(MediaItem mediaItem) {
-    Log.d(logTag, "onPrepared");
     synchronized (lockForTaskQ) {
+      Log.d(logTag, "onPrepared");
       if (currentTask != null
         && ObjectsCompat.equals(currentTask.mediaItem, mediaItem)
         && currentTask.needToWaitForEventToComplete) {
-
         currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_NO_ERROR);
       }
     }
@@ -532,7 +530,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       if (currentTask != null
         && currentTask.needToWaitForEventToComplete) {
 
-        currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN);
+        currentTask.sendCompleteNotification(SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN);
       }
     }
 
@@ -599,7 +597,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       }
 
       mediaItem = exoplayer.getCurrentMediaItem();
-
+      Log.d(logTag, "media item is not null " + (mediaItem != null));
       if (!needToWaitForEventToComplete) {
         sendCompleteNotification(status);
       }

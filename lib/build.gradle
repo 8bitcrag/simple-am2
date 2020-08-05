@@ -34,7 +34,12 @@ dependencies {
     implementation 'com.google.android.exoplayer:exoplayer-core:2.11.7'
     implementation 'com.google.android.exoplayer:exoplayer-hls:2.11.7'
     testImplementation 'junit:junit:4.13'
+    testImplementation 'org.mockito:mockito-core:2.25.0'
+    androidTestImplementation 'org.mockito:mockito-android:2.25.0'
     androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'androidx.test:runner:1.2.0'
+    androidTestImplementation 'androidx.test:rules:1.2.0'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+
 
 }
