@@ -76,7 +76,7 @@ Each task is processed in a queue, and you can chain tasks together using `flatM
 
 ### Foreach and FlatMap
 
-The `foreach` function signals the final operation to be carried out at the end of the chain, and returns a future of the final result.
+The `foreach` function signals the final operation to be carried out at the end of the chain, and returns a future of the final result. *Every* non blocking task needs a foreach, because there are no actions that don't need some kind of consequence.
 
 The `flatMap` function will return another task that gets put on the queue after the first one has completed; a contrived example that sets the volume to full after playing might be:
 ```java
