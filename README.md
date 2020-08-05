@@ -22,7 +22,7 @@ For the most part usage will be the same as [MediaPlayer](https://developer.andr
 Download the latest `.aar` from releases and add it as a module to your app. Instructions for Android Studio can be found [here](https://developer.android.com/studio/projects/android-library#AddDependency).
 
 ## Creation
-An instance of the player is created usin the Builder class that accompanies it, a basic example might be:
+An instance of the player is created using the Builder class that accompanies it, a basic example might be:
 ```java
 public void onCreate() {
   
@@ -50,10 +50,10 @@ public interface AudioFocusHandler {
 This mimics the behavior of the original API to keep it consistent.
 
 ### Callbacks 
-You can use [SessionPlayer.registerPlayerCallback](https://developer.android.com/reference/androidx/media2/common/SessionPlayer#registerPlayerCallback(java.util.concurrent.Executor,%20androidx.media2.common.SessionPlayer.PlayerCallback) as normal, the builder simply provides `setCallbacks` as a convenience.
+You can use [SessionPlayer.registerPlayerCallback](https://developer.android.com/reference/androidx/media2/common/SessionPlayer#registerPlayerCallback(java.util.concurrent.Executor,%20androidx.media2.common.SessionPlayer.PlayerCallback)) as normal, the builder simply provides `setCallbacks` as a convenience.
 
 ## Usage
-Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would normally have one. Usually you would be using `MediaPlayer` which does have some differences:
+Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would normally have a `SessionPlayer`. Usually you would be using `MediaPlayer` which does have some differences:
 
 *DRM handling* - Currently Simple-am2 doesn't handle drm sessions.
 
@@ -64,17 +64,32 @@ Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would
 If something important is missing from this list, please create an issue!
 
 ## Extending
-Exoplayer operations need to be handled and organised on their own thread and this is managed by the TaskCoordinator. Each operation is considered a task and SimpleAudioPlayer simply gives these tasks to the coordinator and returns a future of the result (with a few blocking exceptions).
-
-When ever you ask the coordinator to queue up a task, you also supply a function specifying what you want to happen when the task is complete. These 'post' operations are performed on their own thread, so they won't block main, and won't interfere with other exoplayer tasks. The most common use is triggering appropriate callbacks, for example `seekTo` triggers `onSeekCompleted` when it's done:
+Interacting with the exoplayer is acheived by giving the TaskCoordinator whichever tasks you need it to perform, and supplying any instructions that need to be carried out upon completion. Take a look at the following example:
 ```java
-taskCoordinator.seekTo(
-  position,
-  (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position))
-);
+taskCoordinator.seekTo(position)
+  .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position)));
 ```
-A more complex and contrived example might be auto adjusting volume on play:
 
+Calling `seekTo(position)` gives the coordinator a task, and `foreach` specifies what you need to happen once it's done. In this case the corresponding callback is triggered.
+
+Each task is processed in a queue, and you can chain tasks together using `flatMap`.
+
+### Foreach and FlatMap
+
+The `foreach` function signals the final operation to be carried out at the end of the chain, and returns a future of the final result.
+
+The `flatMap` function will return another task that gets put on the queue after the first one has completed; a contrived example that sets the volume to full after playing might be:
+```java
+public ListenableFuture<PlayerResult> playAndFullVolume() {
+  return taskCoordinator.play()
+    .flatMap((int status, MediaItem item) -> taskCoordinator.setVolume(1f))
+    .foreach(
+      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onPlayerStateChanged(this, PLAYER_STATE_PLAYING))
+    );
+}
+```
+
+The `flatMap` puts a volume task on the queue, and after *that* task is complete, the foreach instructions trigger the callback.
 
 ## Contributing
 Pull requests and issues are welcome.
