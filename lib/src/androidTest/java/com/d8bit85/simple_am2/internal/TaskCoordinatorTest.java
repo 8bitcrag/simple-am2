@@ -5,6 +5,7 @@ import android.os.Looper;
 
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.SessionPlayer;
+import androidx.media2.player.MediaPlayer2;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -23,6 +24,7 @@ import static androidx.media2.player.MediaPlayer2.MEDIA_ERROR_UNKNOWN;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +63,12 @@ public class TaskCoordinatorTest {
       @Override
       public void onError(MediaItem item, int error) {
 
+      }
+
+      @Override
+      public Integer convertStatus(int status) {
+        if (status == MediaPlayer2.CALL_STATUS_NO_ERROR) return SessionPlayer.PlayerResult.RESULT_SUCCESS;
+        return SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN;
       }
     };
 
@@ -109,7 +117,7 @@ public class TaskCoordinatorTest {
         public void run() { // simulate the wait for the callback by running on a separate thread
           try {
             Thread.sleep(10L);
-            coord.onError(mockMediaItem, MEDIA_ERROR_UNKNOWN);
+            coord.onError(mockMediaItem, MediaPlayer2.MEDIA_ERROR_UNKNOWN);
           } catch (InterruptedException e) {
             e.printStackTrace();
           }
@@ -126,6 +134,16 @@ public class TaskCoordinatorTest {
 
     SessionPlayer.PlayerResult res = prepare.get(2, TimeUnit.SECONDS);
     assertEquals(SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN, res.getResultCode());
+  }
+
+  @Test
+  public void test_action_fails() throws InterruptedException, ExecutionException, TimeoutException {
+    doThrow(new IllegalStateException("Test Failure")).when(mockExoWrapper).skipForward();
+    ListenableFuture<SessionPlayer.PlayerResult> task = coord.skipToNextPlaylistItem()
+      .foreach((int status, MediaItem item) -> {});
+
+    SessionPlayer.PlayerResult result = task.get(2L, TimeUnit.SECONDS);
+    assertEquals(SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN, result.getResultCode());
   }
 
   @Test

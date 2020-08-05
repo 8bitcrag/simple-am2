@@ -7,12 +7,14 @@ import android.util.Log;
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.collection.ArrayMap;
 import androidx.core.util.Pair;
 import androidx.media.AudioAttributesCompat;
 import androidx.media2.common.BaseResult;
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.MediaMetadata;
 import androidx.media2.common.SessionPlayer;
+import androidx.media2.player.MediaPlayer2;
 
 import com.d8bit85.simple_am2.internal.ExoWrapperFactory;
 import com.d8bit85.simple_am2.internal.TaskCoordinator;
@@ -24,6 +26,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+
+import static androidx.media2.common.BaseResult.RESULT_ERROR_BAD_VALUE;
+import static androidx.media2.common.BaseResult.RESULT_ERROR_INVALID_STATE;
+import static androidx.media2.common.BaseResult.RESULT_ERROR_IO;
+import static androidx.media2.common.BaseResult.RESULT_ERROR_PERMISSION_DENIED;
+import static androidx.media2.common.BaseResult.RESULT_ERROR_UNKNOWN;
+import static androidx.media2.common.BaseResult.RESULT_INFO_SKIPPED;
+import static androidx.media2.common.BaseResult.RESULT_SUCCESS;
 
 
 public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.BufferListener {
@@ -47,6 +57,20 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   // Thread related
   protected TaskCoordinator taskCoordinator;
   protected final Object lockForState;
+
+  // Status code related
+
+  static ArrayMap<Integer, Integer> sResultCodeMap;
+  static {
+    sResultCodeMap = new ArrayMap<>();
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_NO_ERROR, RESULT_SUCCESS);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN, RESULT_ERROR_UNKNOWN);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_INVALID_OPERATION, RESULT_ERROR_INVALID_STATE);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_BAD_VALUE, RESULT_ERROR_BAD_VALUE);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_PERMISSION_DENIED, RESULT_ERROR_PERMISSION_DENIED);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_ERROR_IO, RESULT_ERROR_IO);
+    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_SKIPPED, RESULT_INFO_SKIPPED);
+  }
 
   SimpleAudioPlayer(@NonNull Context context) {
     Log.d(logTag, "constructor");
@@ -129,6 +153,11 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   @Override
   public void onError(MediaItem item, int error) {
     changeState(PLAYER_STATE_ERROR);
+  }
+
+  @Override
+  public Integer convertStatus(int status) {
+    return sResultCodeMap.containsKey(status) ? sResultCodeMap.get(status) : RESULT_ERROR_UNKNOWN;
   }
 
   // SessionPlayer Implementation

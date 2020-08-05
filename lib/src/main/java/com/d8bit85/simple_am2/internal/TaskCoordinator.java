@@ -46,6 +46,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     void setBufferingState(final MediaItem item, @SessionPlayer.BuffState final int state);
     void onTrackChanged(MediaItem item, int index);
     void onError(MediaItem item, int error);
+    Integer convertStatus(int status);
   }
 
   private static final String logTag = "SMP2: TaskCoordinator";
@@ -530,7 +531,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       if (currentTask != null
         && currentTask.needToWaitForEventToComplete) {
 
-        currentTask.sendCompleteNotification(SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN);
+        currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN);
       }
     }
 
@@ -597,7 +598,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       }
 
       mediaItem = exoplayer.getCurrentMediaItem();
-      Log.d(logTag, "media item is not null " + (mediaItem != null));
+
       if (!needToWaitForEventToComplete) {
         sendCompleteNotification(status);
       }
@@ -608,18 +609,19 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       }
     }
 
-    void sendCompleteNotification(final int status) {
+    void sendCompleteNotification(int status) {
+      Integer converted = bufferListener.convertStatus(status);
       executor.execute(() -> {
         if (!afterIntructions.isEmpty()) {
-          MediaPlayerTask nextTask = afterIntructions.remove().apply(status, mediaItem);
+          MediaPlayerTask nextTask = afterIntructions.remove().apply(converted, mediaItem);
           nextTask.addQueue(afterIntructions);
           future.setFuture(nextTask.foreach(finalInstructions));
           return;
         } else if (finalInstructions != null) {
-          finalInstructions.apply(status, mediaItem);
+          finalInstructions.apply(converted, mediaItem);
         }
 
-        future.set(new SessionPlayer.PlayerResult(status, mediaItem));
+        future.set(new SessionPlayer.PlayerResult(converted, mediaItem));
       });
       clearCurrentAndProcess();
     }

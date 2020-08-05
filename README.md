@@ -91,5 +91,7 @@ public ListenableFuture<PlayerResult> playAndFullVolume() {
 
 The `flatMap` puts a volume task on the queue, and after *that* task is complete, the foreach instructions trigger the callback.
 
+Be aware that the result of the last task is the one returned to the original future. Each foreach/flatmap receives the status of the previous task as the first parameter.
+
 ## Contributing
 Pull requests and issues are welcome.
