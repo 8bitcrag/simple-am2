@@ -146,6 +146,13 @@ public class TaskCoordinatorTest {
   }
 
   @Test
+  public void test_blocking_call_success() {
+    when(mockExoWrapper.getCurrentPosition()).thenReturn(10L);
+    long pos = coord.getCurrentPosition();
+    assertEquals(10L, pos);
+  }
+
+  @Test
   public void test_worst_case() throws InterruptedException, ExecutionException, TimeoutException {
     /*
      * a task is started that has a blocking after effect. Before the blocking call is made,
@@ -202,7 +209,7 @@ public class TaskCoordinatorTest {
         }
       });
 
-    ListenableFuture<SessionPlayer.PlayerResult> task2 = coord.play()
+    coord.play()
       .foreach((int status, MediaItem item) -> {
         try {
           executorResults.put("task2 complete");
@@ -211,7 +218,7 @@ public class TaskCoordinatorTest {
         }
       });
 
-    ListenableFuture<SessionPlayer.PlayerResult> task3 = coord.pause()
+    coord.pause()
       .foreach((int status, MediaItem item) -> {
         try {
           executorResults.put("task3 complete");
