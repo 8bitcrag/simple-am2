@@ -12,7 +12,7 @@ This is a reworking of the original [SessionPlayer implementation](https://devel
 
 Currently this implementaion is focused on audio only and the main goals of this version are:
 
-**Exoplayer as a dependency** - You can use gradle (or your prefered build tool) to override the version of exo. This is useful if you depend on a certain version or if you are stuggling with a bug/issue.
+**Exoplayer as a dependency** - You can use gradle (or your prefered build tool) to override the version of exo. This is useful if you depend on a certain version or if you are struggling with a bug/issue.
 
 **Extendable** - Although still limited to what functionality the wrappers expose (for threading reasons), it should be possible to compose and use the functionality in any way you need.
 
@@ -36,7 +36,7 @@ public void onCreate() {
 ```
 
 ### AudioFocusHandler
-Technically audio focus handling is optional but it is really *really* **really** recommended that you handle it appropriately. When using Android's MediaPlayer audio focus is handled for you, but to give users more flexibility and to limit ditance from the Media2 APIs, it's been ommited from this library.
+Technically audio focus handling is optional but it is really *really* **really** recommended that you handle it appropriately. When using Android's MediaPlayer audio focus is handled for you, but to give users more flexibility and to limit distance from the Media2 APIs, it's been omitted from this library.
 
 For an excellent example and reference on writing a handler, take a look at [Android's own implementation](https://cs.android.com/androidx/platform/frameworks/support/+/androidx-master-dev:media2/player/src/main/java/androidx/media2/player/AudioFocusHandler.java). For an explanation of the prinicples see [Managing Audio Focus](https://developer.android.com/guide/topics/media-apps/audio-focus) on Android developers.
 
