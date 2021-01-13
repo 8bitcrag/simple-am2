@@ -134,7 +134,6 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   public void onTrackChanged(MediaItem item, int index) {
     currentIndex = index;
     notifySessionPlayerCallback(callback -> callback.onCurrentMediaItemChanged(this, item));
-    changeState(state);
   }
 
   @Override
