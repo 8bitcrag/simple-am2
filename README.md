@@ -57,10 +57,6 @@ Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would
 
 *DRM handling* - Currently Simple-am2 doesn't handle drm sessions.
 
-*Moving playlist items* - At the time of writing MediaPlayer doesn't support this (the current alpha *does* so it will soon), simple-am2 **does** support this.
-
-*Event trigger quirks* - You will notice that the `onPlayerStateChanged` callback is sometimes fired when the state hasn't change. *This is intentional* as a work around to some issues in Media2 with notification updating. This will be removed when the issues are corrected in later Media2 versions.
-
 If something important is missing from this list, please create an issue!
 
 ## Extending
