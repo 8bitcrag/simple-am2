@@ -5,7 +5,6 @@ import android.os.Looper;
 
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.SessionPlayer;
-import androidx.media2.player.MediaPlayer2;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -66,7 +65,7 @@ public class TaskCoordinatorTest {
 
       @Override
       public Integer convertStatus(int status) {
-        if (status == MediaPlayer2.CALL_STATUS_NO_ERROR) return SessionPlayer.PlayerResult.RESULT_SUCCESS;
+        if (status == TaskCoordinator.CALL_STATUS_NO_ERROR) return SessionPlayer.PlayerResult.RESULT_SUCCESS;
         return SessionPlayer.PlayerResult.RESULT_ERROR_UNKNOWN;
       }
     };
@@ -116,7 +115,7 @@ public class TaskCoordinatorTest {
         public void run() { // simulate the wait for the callback by running on a separate thread
           try {
             Thread.sleep(10L);
-            coord.onError(mockMediaItem, MediaPlayer2.MEDIA_ERROR_UNKNOWN);
+            coord.onError(mockMediaItem, TaskCoordinator.MEDIA_ERROR_UNKNOWN);
           } catch (InterruptedException e) {
             e.printStackTrace();
           }
