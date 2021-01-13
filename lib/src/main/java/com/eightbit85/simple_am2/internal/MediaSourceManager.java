@@ -45,7 +45,6 @@ public class MediaSourceManager {
     .setAdtsExtractorFlags(AdtsExtractor.FLAG_ENABLE_CONSTANT_BITRATE_SEEKING);
 
   public MediaSourceManager(Context context, String userAgentName) {
-    Log.d(logTag, "constructor");
     this.context = context;
     String userAgent = Util.getUserAgent(context, userAgentName);
     dataSourceFactory = new DefaultDataSourceFactory(context, userAgent);
@@ -142,7 +141,6 @@ public class MediaSourceManager {
   public Boolean onPlayerDiscontinuity(boolean isPeriodTransition, int windowIndex) {
     if (isPeriodTransition && windowIndex != currentIndex) {
       currentIndex = windowIndex;
-      Log.d(logTag, "Current index - " + windowIndex);
       return true;
     }
 

@@ -55,7 +55,6 @@ public class ExoPlayerWrapper {
   private boolean isBuffering;
 
   ExoPlayerWrapper(Context context, Looper looper, WrapperListener listener) {
-    Log.d(logTag, "constructor");
     this.context = context.getApplicationContext();
     this.looper = looper;
     this.listener = listener;

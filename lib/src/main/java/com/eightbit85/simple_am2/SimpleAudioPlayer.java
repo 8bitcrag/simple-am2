@@ -72,7 +72,6 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   }
 
   SimpleAudioPlayer(@NonNull Context context) {
-    Log.d(logTag, "constructor");
 
     taskCoordinator = new TaskCoordinator(context.getApplicationContext(), this, ExoWrapperFactory.getDefaultFactory());
 
@@ -162,7 +161,6 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   // SessionPlayer Implementation
 
   public @NonNull ListenableFuture<PlayerResult> play() {
-    Log.d(logTag, "play! upd");
 
     if (audioFocusHandler == null || audioFocusHandler.onPlay()) {
       return taskCoordinator.play()
@@ -176,21 +174,18 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> pause() {
-    Log.d(logTag, "pause");
     return taskCoordinator.pause()
       .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> prepare() {
-    Log.d(logTag, "prepare");
     return taskCoordinator.prepare()
       .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> seekTo(long position) {
-    Log.d(logTag, "seekTo");
     return taskCoordinator.seekTo(position)
       .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position)));
   }
@@ -200,7 +195,6 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
-    Log.d(logTag, "setAudioattributes");
     return taskCoordinator.setAudioAttributes(attributes)
       .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onAudioAttributesChanged(this, attributes)));
   }
@@ -319,7 +313,6 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToPlaylistItem(@IntRange(from = 0) int index) {
-    Log.d(logTag, "skip to " + index);
     return taskCoordinator.skipToPlaylistItem(index)
       .foreach((int status, MediaItem item) -> {});
   }

@@ -101,7 +101,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   private static final int POLL_BUFFER_INTERVAL_MS = 1000;
 
   public TaskCoordinator(Context context, BufferListener listener, ExoWrapperFactory ExoFactory) {
-    Log.d(logTag, "constructor");
     // Thread related
     handlerThread = new HandlerThread("SimpleAudioPlayer");
     handlerThread.start();
@@ -249,7 +248,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   // SessionPlayer Implementation
 
   public @NonNull MediaPlayerTask play() {
-    Log.d(logTag, "play!");
 
     return new MediaPlayerTask(
       () -> exoplayer.play(),
@@ -260,7 +258,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask pause() {
-    Log.d(logTag, "pause");
 
     return new MediaPlayerTask(
       () -> exoplayer.pause(),
@@ -271,7 +268,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask prepare() {
-    Log.d(logTag, "prepare");
     return new MediaPlayerTask(
       () -> exoplayer.prepare(),
       true // onPrepared
@@ -280,7 +276,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask seekTo(long position) {
-    Log.d(logTag, "seekTo");
     return new MediaPlayerTask(
       () -> exoplayer.seekTo(position),
       true  // onSeekCompleted
@@ -292,7 +287,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
-    Log.d(logTag, "setAudioattributes");
     return new MediaPlayerTask(
       () -> exoplayer.setAudioAttributes(attributes),
       false
@@ -324,7 +318,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask setPlaylist(@NonNull List<MediaItem> list) {
-    Log.d(logTag, "setPlaylist");
     return new MediaPlayerTask(
       () -> exoplayer.setPlaylist(list),
       false
@@ -339,7 +332,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask setMediaItem(@NonNull MediaItem item) {
-    Log.d(logTag, "setMediaItem");
     return new MediaPlayerTask(
       () -> exoplayer.setMediaItem(item),
       false
@@ -348,7 +340,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask addPlaylistItem(int index, @NonNull MediaItem item) {
-    Log.d(logTag, "addPlaylistItem");
     return new MediaPlayerTask(
       () -> exoplayer.addToPlaylist(index, item),
       false
@@ -357,7 +348,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask removePlaylistItem(@IntRange(from = 0) int index) {
-    Log.d(logTag, "removePlaylistItem");
     return new MediaPlayerTask(
       () -> exoplayer.removeFromPlaylist(index),
       false
@@ -366,7 +356,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask replacePlaylistItem(int index, @NonNull MediaItem item) {
-    Log.d(logTag, "replacePlaylistItem");
     return new MediaPlayerTask(
       () -> exoplayer.replacePlaylistItem(index, item),
       false
@@ -374,7 +363,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   }
 
   public @NonNull MediaPlayerTask movePlaylistItem(int from, int to) {
-    Log.d(logTag, "movePlaylistItem");
     return new MediaPlayerTask(
       () -> exoplayer.movePlaylistItem(from, to),
       false
@@ -383,7 +371,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask skipToPreviousPlaylistItem() {
-    Log.d(logTag, "skipToPrev");
     return new MediaPlayerTask(
       () -> exoplayer.skipBackward(),
       false
@@ -392,7 +379,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask skipToNextPlaylistItem() {
-    Log.d(logTag, "skipToNext");
     return new MediaPlayerTask(
       () -> exoplayer.skipForward(),
       false
@@ -401,7 +387,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask skipToPlaylistItem(@IntRange(from = 0) int index) {
-    Log.d(logTag, "skipToPlaylistItem");
     return new MediaPlayerTask(
       () -> exoplayer.skipToIndex(index),
       false
@@ -410,7 +395,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
 
   public @NonNull MediaPlayerTask setRepeatMode(@SessionPlayer.RepeatMode int repeatMode) {
-    Log.d(logTag, "setRepeatMode");
     int mode = (repeatMode == SessionPlayer.REPEAT_MODE_GROUP) ? 2 : repeatMode;
 
     return new MediaPlayerTask(
@@ -420,7 +404,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   }
 
   public @NonNull MediaPlayerTask setShuffleMode(boolean enable) {
-    Log.d(logTag, "setShuffleMode");
 
     return new MediaPlayerTask(
       () -> exoplayer.setShuffleMode(enable),
@@ -483,7 +466,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   @Override
   public void onPrepared(MediaItem mediaItem) {
     synchronized (lockForTaskQ) {
-      Log.d(logTag, "onPrepared");
       if (currentTask != null
         && ObjectsCompat.equals(currentTask.mediaItem, mediaItem)
         && currentTask.needToWaitForEventToComplete) {
@@ -538,7 +520,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   @Override
   public void onSeekCompleted() {
-    Log.d(logTag, "onSeekCompleted");
     synchronized (lockForTaskQ) {
       if (currentTask != null
         && currentTask.needToWaitForEventToComplete) {
