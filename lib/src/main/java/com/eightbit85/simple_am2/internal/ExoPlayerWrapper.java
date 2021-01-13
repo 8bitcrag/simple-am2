@@ -9,8 +9,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.RestrictTo;
 import androidx.media.AudioAttributesCompat;
 import androidx.media2.common.MediaItem;
-import androidx.media2.exoplayer.external.C;
 
+import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
@@ -25,7 +25,7 @@ import com.google.common.base.Preconditions;
 import java.util.List;
 
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
-import static androidx.media2.player.MediaPlayer2.MEDIA_ERROR_UNKNOWN;
+import static com.eightbit85.simple_am2.internal.TaskCoordinator.MEDIA_ERROR_UNKNOWN;
 @RestrictTo(LIBRARY_GROUP_PREFIX)
 public class ExoPlayerWrapper {
 

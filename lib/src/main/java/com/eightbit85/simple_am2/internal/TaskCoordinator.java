@@ -7,6 +7,7 @@ import android.os.HandlerThread;
 import android.util.Log;
 
 import androidx.annotation.GuardedBy;
+import androidx.annotation.IntDef;
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -15,13 +16,14 @@ import androidx.core.util.ObjectsCompat;
 import androidx.media.AudioAttributesCompat;
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.SessionPlayer;
-import androidx.media2.player.MediaPlayer2;
 
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
 import java.io.IOException;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -46,7 +48,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     void setBufferingState(final MediaItem item, @SessionPlayer.BuffState final int state);
     void onTrackChanged(MediaItem item, int index);
     void onError(MediaItem item, int error);
-    Integer convertStatus(int status);
+    Integer convertStatus(@CallStatus int status);
   }
 
   private static final String logTag = "SMP2: TaskCoordinator";
@@ -73,6 +75,28 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   private final Object lockForTaskQ;
   private final Object lockForHandler;
   private final Object lockForState;
+
+  // Error Codes
+  public static final int MEDIA_ERROR_UNKNOWN = 1;
+
+  // Status Codes - These codes directly mirror those in MediaPlayer2, which is currently inaccessible
+  public static final int CALL_STATUS_NO_ERROR = 0;
+  public static final int CALL_STATUS_ERROR_UNKNOWN = Integer.MIN_VALUE;
+  public static final int CALL_STATUS_INVALID_OPERATION = 1;
+  public static final int CALL_STATUS_BAD_VALUE = 2;
+  public static final int CALL_STATUS_PERMISSION_DENIED = 3;
+  public static final int CALL_STATUS_ERROR_IO = 4;
+  public static final int CALL_STATUS_SKIPPED = 5;
+  @IntDef(flag = false, /*prefix = "CALL_STATUS",*/ value = {
+    CALL_STATUS_NO_ERROR,
+    CALL_STATUS_ERROR_UNKNOWN,
+    CALL_STATUS_INVALID_OPERATION,
+    CALL_STATUS_BAD_VALUE,
+    CALL_STATUS_PERMISSION_DENIED,
+    CALL_STATUS_ERROR_IO,
+    CALL_STATUS_SKIPPED})
+  @Retention(RetentionPolicy.SOURCE)
+  public @interface CallStatus {}
 
   private static final int POLL_BUFFER_INTERVAL_MS = 1000;
 
@@ -463,7 +487,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       if (currentTask != null
         && ObjectsCompat.equals(currentTask.mediaItem, mediaItem)
         && currentTask.needToWaitForEventToComplete) {
-        currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_NO_ERROR);
+        currentTask.sendCompleteNotification(CALL_STATUS_NO_ERROR);
       }
     }
   }
@@ -519,7 +543,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       if (currentTask != null
         && currentTask.needToWaitForEventToComplete) {
 
-        currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_NO_ERROR);
+        currentTask.sendCompleteNotification(CALL_STATUS_NO_ERROR);
       }
     }
   }
@@ -531,7 +555,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       if (currentTask != null
         && currentTask.needToWaitForEventToComplete) {
 
-        currentTask.sendCompleteNotification(MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN);
+        currentTask.sendCompleteNotification(CALL_STATUS_ERROR_UNKNOWN);
       }
     }
 
@@ -544,7 +568,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   @FunctionalInterface
   public interface Operations {
-    void apply() throws IOException, MediaPlayer2.NoDrmSchemeException;
+    void apply() throws IOException;
   }
 
   @FunctionalInterface
@@ -580,21 +604,21 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
     @Override
     public void run() {
-      int status = MediaPlayer2.CALL_STATUS_NO_ERROR;
+      int status = CALL_STATUS_NO_ERROR;
 
 
       try {
         instructions.apply();
       } catch (IllegalStateException e) {
-        status = MediaPlayer2.CALL_STATUS_INVALID_OPERATION;
+        status = CALL_STATUS_INVALID_OPERATION;
       } catch (IllegalArgumentException e) {
-        status = MediaPlayer2.CALL_STATUS_BAD_VALUE;
+        status = CALL_STATUS_BAD_VALUE;
       } catch (SecurityException e) {
-        status = MediaPlayer2.CALL_STATUS_PERMISSION_DENIED;
+        status = CALL_STATUS_PERMISSION_DENIED;
       } catch (IOException e) {
-        status = MediaPlayer2.CALL_STATUS_ERROR_IO;
+        status = CALL_STATUS_ERROR_IO;
       } catch (Exception e) {
-        status = MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN;
+        status = CALL_STATUS_ERROR_UNKNOWN;
       }
 
       mediaItem = exoplayer.getCurrentMediaItem();
@@ -609,7 +633,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       }
     }
 
-    void sendCompleteNotification(int status) {
+    void sendCompleteNotification(@CallStatus int status) {
       Integer converted = bufferListener.convertStatus(status);
       executor.execute(() -> {
         if (!afterIntructions.isEmpty()) {

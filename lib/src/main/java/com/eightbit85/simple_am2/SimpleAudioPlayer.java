@@ -14,7 +14,6 @@ import androidx.media2.common.BaseResult;
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.MediaMetadata;
 import androidx.media2.common.SessionPlayer;
-import androidx.media2.player.MediaPlayer2;
 
 import com.eightbit85.simple_am2.internal.ExoWrapperFactory;
 import com.eightbit85.simple_am2.internal.TaskCoordinator;
@@ -63,13 +62,13 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   static ArrayMap<Integer, Integer> sResultCodeMap;
   static {
     sResultCodeMap = new ArrayMap<>();
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_NO_ERROR, RESULT_SUCCESS);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_ERROR_UNKNOWN, RESULT_ERROR_UNKNOWN);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_INVALID_OPERATION, RESULT_ERROR_INVALID_STATE);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_BAD_VALUE, RESULT_ERROR_BAD_VALUE);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_PERMISSION_DENIED, RESULT_ERROR_PERMISSION_DENIED);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_ERROR_IO, RESULT_ERROR_IO);
-    sResultCodeMap.put(MediaPlayer2.CALL_STATUS_SKIPPED, RESULT_INFO_SKIPPED);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_NO_ERROR, RESULT_SUCCESS);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_ERROR_UNKNOWN, RESULT_ERROR_UNKNOWN);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_INVALID_OPERATION, RESULT_ERROR_INVALID_STATE);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_BAD_VALUE, RESULT_ERROR_BAD_VALUE);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_PERMISSION_DENIED, RESULT_ERROR_PERMISSION_DENIED);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_ERROR_IO, RESULT_ERROR_IO);
+    sResultCodeMap.put(TaskCoordinator.CALL_STATUS_SKIPPED, RESULT_INFO_SKIPPED);
   }
 
   SimpleAudioPlayer(@NonNull Context context) {
@@ -434,8 +433,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
   @Override
   public void close() {
-    //TODO: current alpha release SessionPlayer is not autocloseable and requires super call
-//    super.close();
+    super.close();
     reset();
     synchronized (lockForState) {
       if (audioFocusHandler != null) audioFocusHandler.close();
