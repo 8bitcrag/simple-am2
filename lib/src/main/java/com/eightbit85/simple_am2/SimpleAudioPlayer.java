@@ -162,8 +162,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
   public @NonNull ListenableFuture<PlayerResult> play() {
 
     if (audioFocusHandler == null || audioFocusHandler.onPlay()) {
-      return taskCoordinator.play()
-        .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PLAYING));
+      return taskCoordinator.submit(taskCoordinator.play()
+        .foreach(pr -> changeState(SessionPlayer.PLAYER_STATE_PLAYING)));
     }
 
     SettableFuture<PlayerResult> fut = SettableFuture.create();
@@ -173,20 +173,20 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> pause() {
-    return taskCoordinator.pause()
-      .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+    return taskCoordinator.submit(taskCoordinator.pause()
+      .foreach(pr -> changeState(SessionPlayer.PLAYER_STATE_PAUSED)));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> prepare() {
-    return taskCoordinator.prepare()
-      .foreach((int status, MediaItem item) -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+    return taskCoordinator.submit(taskCoordinator.prepare()
+      .foreach(pr -> changeState(SessionPlayer.PLAYER_STATE_PAUSED)));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> seekTo(long position) {
-    return taskCoordinator.seekTo(position)
-      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position)));
+    return taskCoordinator.submit(taskCoordinator.seekTo(position)
+      .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position))));
   }
 
 
@@ -194,8 +194,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
-    return taskCoordinator.setAudioAttributes(attributes)
-      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onAudioAttributesChanged(this, attributes)));
+    return taskCoordinator.submit(taskCoordinator.setAudioAttributes(attributes)
+      .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onAudioAttributesChanged(this, attributes))));
   }
 
 
@@ -245,12 +245,12 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     playlistMetaData = metadata;
     currentSize = list.size();
 
-    return taskCoordinator.setPlaylist(list)
-      .foreach((int status, MediaItem item) -> {
+    return taskCoordinator.submit(taskCoordinator.setPlaylist(list)
+      .foreach(pr -> {
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, list, metadata));
-        onTrackChanged(item, 0);
+        onTrackChanged(pr.getMediaItem(), 0);
       }
-    );
+    ));
   }
 
 
@@ -263,57 +263,54 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     playlistMetaData = null;
     currentSize = 1;
 
-    return taskCoordinator.setMediaItem(item)
-      .foreach((int status, MediaItem mitem) -> onTrackChanged(item, 0));
+    return taskCoordinator.submit(taskCoordinator.setMediaItem(item)
+      .foreach(pr -> onTrackChanged(item, 0)));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> addPlaylistItem(int index, @NonNull MediaItem item) {
     int i = Math.min(index, currentSize); // if index is greater than current size, put item on the end
-    return taskCoordinator.addPlaylistItem(i, item)
-      .foreach((int status, MediaItem mitem) -> {
+    return taskCoordinator.submit(taskCoordinator.addPlaylistItem(i, item)
+      .foreach(pr -> {
         currentSize++;
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData));
-      });
+      }));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> removePlaylistItem(@IntRange(from = 0) int index) {
-    return taskCoordinator.removePlaylistItem(index)
-      .foreach((int status, MediaItem item) -> {
+    return taskCoordinator.submit(taskCoordinator.removePlaylistItem(index)
+      .foreach(pr -> {
         currentSize--;
         notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData));
-      });
+      }));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> replacePlaylistItem(int index, @NonNull MediaItem item) {
-    return taskCoordinator.replacePlaylistItem(index, item)
-      .foreach((int status, MediaItem mitem) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
+    return taskCoordinator.submit(taskCoordinator.replacePlaylistItem(index, item)
+      .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData))));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> movePlaylistItem(int from, int to) {
-    return taskCoordinator.movePlaylistItem(to, from)
-      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData)));
+    return taskCoordinator.submit(taskCoordinator.movePlaylistItem(to, from)
+      .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onPlaylistChanged(this, taskCoordinator.getPlaylist(), playlistMetaData))));
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToPreviousPlaylistItem() {
-    return taskCoordinator.skipToPreviousPlaylistItem()
-      .foreach((int status, MediaItem item) -> {});
+    return taskCoordinator.submit(taskCoordinator.skipToPreviousPlaylistItem());
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToNextPlaylistItem() {
-    return taskCoordinator.skipToNextPlaylistItem()
-      .foreach((int status, MediaItem item) -> {});
+    return taskCoordinator.submit(taskCoordinator.skipToNextPlaylistItem());
   }
 
 
   public @NonNull ListenableFuture<PlayerResult> skipToPlaylistItem(@IntRange(from = 0) int index) {
-    return taskCoordinator.skipToPlaylistItem(index)
-      .foreach((int status, MediaItem item) -> {});
+    return taskCoordinator.submit(taskCoordinator.skipToPlaylistItem(index));
   }
 
 
@@ -328,8 +325,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
   public @NonNull ListenableFuture<PlayerResult> setRepeatMode(@RepeatMode int mode) {
     repeatMode = (mode == SessionPlayer.REPEAT_MODE_GROUP) ? 2 : mode;
-    return taskCoordinator.setRepeatMode(repeatMode)
-      .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onRepeatModeChanged(this, repeatMode)));
+    return taskCoordinator.submit(taskCoordinator.setRepeatMode(repeatMode)
+      .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onRepeatModeChanged(this, repeatMode))));
   }
 
 
@@ -337,8 +334,8 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
     if (mode != shuffleMode) {
       shuffleMode = mode;
       boolean enable = shuffleMode != SessionPlayer.SHUFFLE_MODE_NONE;
-      return taskCoordinator.setShuffleMode(enable)
-        .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onShuffleModeChanged(this, shuffleMode)));
+      return taskCoordinator.submit(taskCoordinator.setShuffleMode(enable)
+        .foreach(pr -> notifySessionPlayerCallback(callback -> callback.onShuffleModeChanged(this, shuffleMode))));
     }
 
     SettableFuture<PlayerResult> fut = SettableFuture.create();
@@ -416,7 +413,7 @@ public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.
 
 
   public @NonNull ListenableFuture<PlayerResult> setVolume(float volume) {
-    return taskCoordinator.setVolume(volume).foreach((int status, MediaItem item) -> {});
+    return taskCoordinator.submit(taskCoordinator.setVolume(volume));
   }
 
   public float getVolume() {
