@@ -60,34 +60,7 @@ Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would
 If something important is missing from this list, please create an issue!
 
 ## Extending
-Interacting with the exoplayer is acheived by giving the TaskCoordinator whichever tasks you need it to perform, and supplying any instructions that need to be carried out upon completion. Take a look at the following example:
-```java
-taskCoordinator.seekTo(position)
-  .foreach((int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, position)));
-```
-
-Calling `seekTo(position)` gives the coordinator a task, and `foreach` specifies what you need to happen once it's done. In this case the corresponding callback is triggered.
-
-Each task is processed in a queue, and you can chain tasks together using `flatMap`.
-
-### Foreach and FlatMap
-
-The `foreach` function signals the final operation to be carried out at the end of the chain, and returns a future of the final result. *Every* non blocking task needs a foreach, because there are no actions that don't need some kind of consequence.
-
-The `flatMap` function will return another task that gets put on the queue after the first one has completed; a contrived example that sets the volume to full after playing might be:
-```java
-public ListenableFuture<PlayerResult> playAndFullVolume() {
-  return taskCoordinator.play()
-    .flatMap((int status, MediaItem item) -> taskCoordinator.setVolume(1f))
-    .foreach(
-      (int status, MediaItem item) -> notifySessionPlayerCallback(callback -> callback.onPlayerStateChanged(this, PLAYER_STATE_PLAYING))
-    );
-}
-```
-
-The `flatMap` puts a volume task on the queue, and after *that* task is complete, the foreach instructions trigger the callback.
-
-Be aware that the result of the last task is the one returned to the original future. Each foreach/flatmap receives the status of the previous task as the first parameter.
+`*TODO* Fill out the new monadic instructions.`
 
 ## Contributing
 Pull requests and issues are welcome.
