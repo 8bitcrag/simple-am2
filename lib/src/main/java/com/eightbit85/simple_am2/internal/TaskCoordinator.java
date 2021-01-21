@@ -16,14 +16,18 @@ import androidx.core.util.ObjectsCompat;
 import androidx.media.AudioAttributesCompat;
 import androidx.media2.common.MediaItem;
 import androidx.media2.common.SessionPlayer;
+import androidx.media2.common.SessionPlayer.PlayerResult;
 
+import com.eightbit85.simple_am2.Monads.Bad;
+import com.eightbit85.simple_am2.Monads.Either;
 import com.eightbit85.simple_am2.Monads.Eval;
+import com.eightbit85.simple_am2.Monads.Good;
 import com.eightbit85.simple_am2.Monads.Later;
-import com.eightbit85.simple_am2.Monads.MediaTask;
 import com.eightbit85.simple_am2.Monads.Now;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.SettableFuture;
 
+import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayDeque;
@@ -57,17 +61,20 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   private static final String logTag = "SMP2: TaskCoordinator";
 
   // Thread related
-  @GuardedBy("lockForHandler")
-  private HandlerThread handlerThread;
-  @GuardedBy("lockForHandler")
-  private Handler handler;
-  private ExecutorService executor;
+  @GuardedBy("lockForTaskHandler")
+  private HandlerThread taskHandlerThread;
+  @GuardedBy("lockForTaskHandler")
+  private final Handler taskHandler;
+  @GuardedBy("lockForExoHandler")
+  private HandlerThread exoHandlerThread;
+  @GuardedBy("lockForExoHandler")
+  private final Handler exoHandler;
 
   // Task related
   @GuardedBy("lockForTaskQ")
-  private ArrayDeque<MediaPlayerTask> taskQueue;
+  private final ArrayDeque<MediaPlayerTask> taskQueue;
   private MediaPlayerTask currentTask;
-  private PollBufferRunnable tokenForBufferPolling;
+  private final PollBufferRunnable tokenForBufferPolling;
   private boolean isPolling;
 
   // ExoPlayer related
@@ -76,7 +83,8 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   // Locks
   private final Object lockForTaskQ;
-  private final Object lockForHandler;
+  private final Object lockForTaskHandler;
+  private final Object lockForExoHandler;
   private final Object lockForState;
   private final Object lockForOverride;
 
@@ -109,22 +117,26 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   public TaskCoordinator(Context context, BufferListener listener, ExoWrapperFactory ExoFactory) {
     // Thread related
-    handlerThread = new HandlerThread("SimpleAudioPlayer");
-    handlerThread.start();
-    handler = new Handler(handlerThread.getLooper());
-    executor = Executors.newFixedThreadPool(1);
+    taskHandlerThread = new HandlerThread("SimpleAudioPlayer");
+    taskHandlerThread.start();
+    taskHandler = new Handler(taskHandlerThread.getLooper());
+
+    exoHandlerThread = new HandlerThread("SimpleAudioPlayerExo");
+    exoHandlerThread.start();
+    exoHandler = new Handler(exoHandlerThread.getLooper());
 
     // Task related
     taskQueue = new ArrayDeque<>();
     tokenForBufferPolling = new PollBufferRunnable();
 
     // ExoPlayer related
-    exoplayer = ExoFactory.getWrapper(context, handlerThread.getLooper(), this);
+    exoplayer = ExoFactory.getWrapper(context, exoHandlerThread.getLooper(), this);
     bufferListener = listener;
 
     // Locks
     lockForTaskQ = new Object();
-    lockForHandler = new Object();
+    lockForTaskHandler = new Object();
+    lockForExoHandler = new Object();
     lockForState = new Object();
     lockForOverride = new Object();
 
@@ -172,7 +184,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
    * @param mediaTask Monad representing the sequence of instructions for the exoplayer
    * @return Future representing the completion of the instructions
    */
-  public SettableFuture<SessionPlayer.PlayerResult> submit(MediaTask<SessionPlayer.PlayerResult> mediaTask) {
+  public SettableFuture<SessionPlayer.PlayerResult> submit(MediaTask<Integer, PlayerResult> mediaTask) {
     MediaPlayerTask mpt = new MediaPlayerTask(mediaTask);
     return addTask(mpt);
   }
@@ -200,7 +212,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     if (currentTask == null && !taskQueue.isEmpty()) {
       MediaPlayerTask task = taskQueue.removeFirst();
       currentTask = task;
-      handler.post(task);
+      taskHandler.post(task);
     }
   }
 
@@ -213,9 +225,9 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
    */
   private <T> T processNowAndWaitForResult(Callable<T> callable) {
     SettableFuture<T> future = SettableFuture.create();
-    synchronized (lockForHandler) {
-      Preconditions.checkNotNull(handlerThread);
-      boolean success = handler.post(() -> {
+    synchronized (lockForExoHandler) {
+      Preconditions.checkNotNull(exoHandlerThread);
+      boolean success = exoHandler.post(() -> {
         try {
           future.set(callable.call());
         } catch (Throwable e) {
@@ -260,76 +272,121 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   private void pollBufferingState() {
     exoplayer.updateBuffering();
-    handler.postDelayed(tokenForBufferPolling, POLL_BUFFER_INTERVAL_MS);
+    exoHandler.postDelayed(tokenForBufferPolling, POLL_BUFFER_INTERVAL_MS);
   }
 
   // Convenience
 
-  Function<Integer, SessionPlayer.PlayerResult> mapToResult = (i -> new SessionPlayer.PlayerResult(bufferListener.convertStatus(i), exoplayer.getCurrentMediaItem()));
+    @FunctionalInterface
+    public interface Op<A> {
+      A get() throws IOException;
+    }
+
+
+  private final Function<Integer, SessionPlayer.PlayerResult> mapToResult = (i -> new SessionPlayer.PlayerResult(bufferListener.convertStatus(i), exoplayer.getCurrentMediaItem()));
+
+  private Either<Integer, Integer> processInstruction(Op<Integer> op) {
+    Either<Integer, Integer> status;
+
+    try {
+      status = new Good<>(op.get());
+    } catch (IllegalStateException e) {
+      status = new Bad<>(CALL_STATUS_INVALID_OPERATION);
+    } catch (IllegalArgumentException e) {
+      status = new Bad<>(CALL_STATUS_BAD_VALUE);
+    } catch (SecurityException e) {
+      status = new Bad<>(CALL_STATUS_PERMISSION_DENIED);
+    } catch (IOException e) {
+      status = new Bad<>(CALL_STATUS_ERROR_IO);
+    } catch (Exception e) {
+      status = new Bad<>(CALL_STATUS_ERROR_UNKNOWN);
+    }
+
+    return status;
+  }
+
+  private MediaTask<Integer, PlayerResult> mediaTaskWithErrorHandling(Op<Integer> op) {
+    return mediaTaskWithErrorHandling(op, true);
+  }
+
+  private MediaTask<Integer, PlayerResult> mediaTaskWithErrorHandling(Op<Integer> op, boolean isImmediate) {
+    return new MediaTask<>(() -> {
+      exoHandler.post(() -> {
+        Either<Integer, Integer> status = processInstruction(op);
+        if (isImmediate || !status.isGood()) {
+          synchronized (lockForOverride) {
+            overrideStatus = status.isGood() ? status.getValue() : status.getErrorValue();
+          }
+          currentTask.sendCompleteNotification();
+        }
+      });
+
+      return new Later<>(() -> {
+        Either<Integer, Integer> st;
+        synchronized (lockForOverride) {
+          if (overrideStatus == CALL_STATUS_NO_ERROR) {
+            st = new Good<>(overrideStatus);
+          } else {
+            st = new Bad<>(overrideStatus); // short circuit the rest of the sequence
+          }
+        }
+        return st;
+      });
+
+    }).map(mapToResult);
+  }
 
   // SessionPlayer Implementation
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> play() {
+  public @NonNull MediaTask<Integer, PlayerResult> play() {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.play();
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> pause() {
+  public @NonNull MediaTask<Integer, PlayerResult> pause() {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.pause();
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> prepare() {
+  public @NonNull MediaTask<Integer, PlayerResult> prepare() {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.prepare();
-      return new Later<>(() -> {
-        int st;
-        synchronized (lockForOverride) {
-          st = overrideStatus;
-        }
-        return st;
-      });
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    }, false);
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> seekTo(long position) {
+  public @NonNull MediaTask<Integer, PlayerResult> seekTo(long position) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.seekTo(position);
-      return new Later<>(() -> {
-        int st;
-        synchronized (lockForOverride) {
-          st = overrideStatus;
-        }
-        return st;
-      });
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    }, false);
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setPlaybackSpeed(float playbackSpeed) {  throw new UnsupportedOperationException("Setting the PlaybackSpeed is not supported in this version"); }
+  public @NonNull MediaTask<Integer, PlayerResult> setPlaybackSpeed(float playbackSpeed) {  throw new UnsupportedOperationException("Setting the PlaybackSpeed is not supported in this version"); }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
+  public @NonNull MediaTask<Integer, PlayerResult> setAudioAttributes(@NonNull AudioAttributesCompat attributes) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setAudioAttributes(attributes);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
@@ -357,12 +414,12 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setPlaylist(@NonNull List<MediaItem> list) {
+  public @NonNull MediaTask<Integer, PlayerResult> setPlaylist(@NonNull List<MediaItem> list) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setPlaylist(list);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
@@ -373,101 +430,101 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setMediaItem(@NonNull MediaItem item) {
+  public @NonNull MediaTask<Integer, PlayerResult> setMediaItem(@NonNull MediaItem item) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setMediaItem(item);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> addPlaylistItem(int index, @NonNull MediaItem item) {
+  public @NonNull MediaTask<Integer, PlayerResult> addPlaylistItem(int index, @NonNull MediaItem item) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.addToPlaylist(index, item);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> removePlaylistItem(@IntRange(from = 0) int index) {
+  public @NonNull MediaTask<Integer, PlayerResult> removePlaylistItem(@IntRange(from = 0) int index) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.removeFromPlaylist(index);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> replacePlaylistItem(int index, @NonNull MediaItem item) {
+  public @NonNull MediaTask<Integer, PlayerResult> replacePlaylistItem(int index, @NonNull MediaItem item) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.replacePlaylistItem(index, item);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> movePlaylistItem(int from, int to) {
+  public @NonNull MediaTask<Integer, PlayerResult> movePlaylistItem(int from, int to) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.movePlaylistItem(from, to);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> skipToPreviousPlaylistItem() {
+  public @NonNull MediaTask<Integer, PlayerResult> skipToPreviousPlaylistItem() {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.skipBackward();
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> skipToNextPlaylistItem() {
+  public @NonNull MediaTask<Integer, PlayerResult> skipToNextPlaylistItem() {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.skipForward();
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> skipToPlaylistItem(@IntRange(from = 0) int index) {
+  public @NonNull MediaTask<Integer, PlayerResult> skipToPlaylistItem(@IntRange(from = 0) int index) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.skipToIndex(index);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setRepeatMode(@SessionPlayer.RepeatMode int repeatMode) {
+  public @NonNull MediaTask<Integer, PlayerResult> setRepeatMode(@SessionPlayer.RepeatMode int repeatMode) {
     int mode = (repeatMode == SessionPlayer.REPEAT_MODE_GROUP) ? 2 : repeatMode;
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setRepeatMode(mode);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setShuffleMode(boolean enable) {
+  public @NonNull MediaTask<Integer, PlayerResult> setShuffleMode(boolean enable) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setShuffleMode(enable);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
@@ -486,17 +543,20 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   }
 
 
-  public @NonNull MediaTask<SessionPlayer.PlayerResult> setVolume(float volume) {
+  public @NonNull MediaTask<Integer, PlayerResult> setVolume(float volume) {
 
-    return new MediaTask<>(() -> {
+    return mediaTaskWithErrorHandling(() -> {
       exoplayer.setVolume(volume);
-      return new Now<>(CALL_STATUS_NO_ERROR);
-    }).map(mapToResult);
+      return CALL_STATUS_NO_ERROR;
+    });
 
   }
 
   public float getVolume() {
-    return processNowAndWaitForResult(() -> exoplayer.getVolume());
+    return processNowAndWaitForResult(() -> {
+      Log.d("testing", "GETTING VOLUME");
+      return exoplayer.getVolume();
+    });
   }
 
 
@@ -505,21 +565,29 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     reset();
 
     HandlerThread hthread;
-    synchronized (lockForHandler) {
-      hthread = handlerThread;
+    synchronized (lockForExoHandler) {
+      hthread = exoHandlerThread;
+      if (hthread != null) {
+        exoHandlerThread = null;
+
+        exoHandler.removeCallbacks(tokenForBufferPolling);
+
+        SettableFuture<Boolean> future = SettableFuture.create();
+        exoHandler.post(() -> {
+          exoplayer.close();
+          future.set(true);
+        });
+        getPlayerFuture(future);
+
+        hthread.quit();
+      }
+    }
+
+    synchronized (lockForTaskHandler) {
+      hthread = taskHandlerThread;
       if (hthread == null) return;
-      handlerThread = null;
-
-      handler.removeCallbacks(tokenForBufferPolling);
-
-      SettableFuture<Boolean> future = SettableFuture.create();
-      handler.post(() -> {
-        exoplayer.close();
-        future.set(true);
-      });
-      getPlayerFuture(future);
+      taskHandlerThread = null;
       hthread.quit();
-      executor.shutdown();
     }
   }
 
@@ -544,7 +612,9 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
 
   @Override
   public void onTrackChanged(MediaItem item, int index) {
-    executor.execute(() -> bufferListener.onTrackChanged(item, index));
+    //TODO: postAtFrontOfQueue is used to ensure track changes are observed quickly,
+    // but it should be checked that this doesn't have unintended side-effects
+    taskHandler.postAtFrontOfQueue(() -> bufferListener.onTrackChanged(item, index));
   }
 
 
@@ -552,7 +622,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   public void onStartBufferPolling() {
     if (!isPolling) {
       isPolling = true;
-      handler.post(tokenForBufferPolling);
+      exoHandler.post(tokenForBufferPolling);
     }
   }
 
@@ -561,7 +631,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
   public  void onStopBufferPolling() {
     if (isPolling) {
       isPolling = false;
-      handler.removeCallbacks(tokenForBufferPolling);
+      exoHandler.removeCallbacks(tokenForBufferPolling);
     }
   }
 
@@ -614,121 +684,6 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     bufferListener.onError(mediaItem, error);
   }
 
-
-  // Task Structure
-
-//  @FunctionalInterface
-//  public interface Op<A> {
-//    A apply();// throws IOException;
-//  }
-//
-//  @FunctionalInterface
-//  public interface Map<B> {
-//    B apply();// throws IOException;
-//  }
-//
-//
-//  @FunctionalInterface
-//  public interface Operations {
-//    void apply() throws IOException;
-//  }
-//
-//  @FunctionalInterface
-//  public interface Foreach {
-//    void apply(int state, MediaItem item);
-//  }
-//
-//  @FunctionalInterface
-//  public interface FlatMap {
-//    MediaPlayerTask apply(int state, MediaItem item);
-//  }
-
-//  public class MediaPlayerTask implements Runnable {
-//
-//    final SettableFuture<SessionPlayer.PlayerResult> future;
-//    final boolean needToWaitForEventToComplete;
-//    private MediaItem mediaItem;
-//    @GuardedBy("this")
-//    boolean taskComplete;
-//
-//    private final Operations instructions;
-//    private final ArrayDeque<FlatMap> afterIntructions;
-//    @Nullable
-//    private Foreach finalInstructions;
-//
-//    MediaPlayerTask(Operations instructions, boolean needToWaitForEventToComplete) {
-//      this.future = SettableFuture.create();
-//      this.instructions = instructions;
-//      this.afterIntructions = new ArrayDeque<>();
-//      this.finalInstructions = null;
-//      this.needToWaitForEventToComplete = needToWaitForEventToComplete;
-//    }
-//
-//    @Override
-//    public void run() {
-//      int status = CALL_STATUS_NO_ERROR;
-//
-//
-//      try {
-//        instructions.apply();
-//      } catch (IllegalStateException e) {
-//        status = CALL_STATUS_INVALID_OPERATION;
-//      } catch (IllegalArgumentException e) {
-//        status = CALL_STATUS_BAD_VALUE;
-//      } catch (SecurityException e) {
-//        status = CALL_STATUS_PERMISSION_DENIED;
-//      } catch (IOException e) {
-//        status = CALL_STATUS_ERROR_IO;
-//      } catch (Exception e) {
-//        status = CALL_STATUS_ERROR_UNKNOWN;
-//      }
-//
-//      mediaItem = exoplayer.getCurrentMediaItem();
-//
-//      if (!needToWaitForEventToComplete) {
-//        sendCompleteNotification(status);
-//      }
-//
-//      synchronized (this) {
-//        taskComplete = true;
-//        notifyAll();
-//      }
-//    }
-//
-//    void sendCompleteNotification(@CallStatus int status) {
-//      Integer converted = bufferListener.convertStatus(status);
-//      executor.execute(() -> {
-//        if (!afterIntructions.isEmpty()) {
-//          MediaPlayerTask nextTask = afterIntructions.remove().apply(converted, mediaItem);
-//          nextTask.addQueue(afterIntructions);
-//          future.setFuture(nextTask.foreach(finalInstructions));
-//          return;
-//        } else if (finalInstructions != null) {
-//          finalInstructions.apply(converted, mediaItem);
-//        }
-//
-//        future.set(new SessionPlayer.PlayerResult(converted, mediaItem));
-//      });
-//      clearCurrentAndProcess();
-//    }
-//
-//    void addQueue(ArrayDeque<FlatMap> after) {
-//      afterIntructions.addAll(after);
-//    }
-//
-//    public MediaPlayerTask flatMap(FlatMap fm) {
-//      afterIntructions.add(fm);
-//      return this;
-//    }
-//
-//    public ListenableFuture<SessionPlayer.PlayerResult> foreach(Foreach fe) {
-//      finalInstructions = fe;
-//      addTask(this);
-//      return future;
-//    }
-//
-//  }
-
   public class MediaPlayerTask implements Runnable {
 
     final SettableFuture<SessionPlayer.PlayerResult> future;
@@ -736,10 +691,10 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     @GuardedBy("this")
     boolean taskComplete;
 
-    private final MediaTask<SessionPlayer.PlayerResult> instructions;
-    private Eval<SessionPlayer.PlayerResult> procedure;
+    private final MediaTask<Integer, PlayerResult> instructions;
+    private Eval<Integer, SessionPlayer.PlayerResult> procedure;
 
-    MediaPlayerTask(MediaTask<SessionPlayer.PlayerResult> instructions) {
+    MediaPlayerTask(MediaTask<Integer, PlayerResult> instructions) {
       this.future = SettableFuture.create();
       this.instructions = instructions;
       this.taskComplete = false;
@@ -755,7 +710,7 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
       mediaItem = exoplayer.getCurrentMediaItem();
 
       if (procedure.isNow()) {
-        sendCompleteNotification();
+        finish(procedure.run());
       }
 
       synchronized (this) {
@@ -765,17 +720,24 @@ public class TaskCoordinator implements ExoPlayerWrapper.WrapperListener, AutoCl
     }
 
     void sendCompleteNotification() {
-      if (!procedure.isNow()) {
+      taskHandler.post(() -> { // sendCompleteNotification is called from exo thread, move back on to task thread
         procedure = procedure.step(); // execute next instruction
         mediaItem = exoplayer.getCurrentMediaItem(); // instruction may change mediaItem
-      }
+        if (procedure.isNow()) { // Have reached the end
+          finish(procedure.run());
+        }
+      });
+    }
 
-      if (procedure.isNow()) {
-        executor.execute(() -> {
-          future.set(procedure.run());
-        });
-        clearCurrentAndProcess();
+    private void finish(Either<Integer, PlayerResult> result) {
+      if (result.isGood()) {
+        future.set(result.getValue());
+      } else {
+        int st = bufferListener.convertStatus(result.getErrorValue());
+        PlayerResult er = new PlayerResult(st, mediaItem);
+        future.set(er);
       }
+      clearCurrentAndProcess();
     }
 
   }

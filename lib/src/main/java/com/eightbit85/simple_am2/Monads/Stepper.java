@@ -4,11 +4,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class Stepper<A> extends Eval<A> {
+public class Stepper<E, A> extends Eval<E, A> {
 
-  private Supplier<Eval<A>> morph;
+  private Supplier<Eval<E, A>> morph;
 
-  public Stepper(Supplier<Eval<A>> step) {
+  public Stepper(Supplier<Eval<E, A>> step) {
     this.morph = step;
   }
 
@@ -23,27 +23,27 @@ public class Stepper<A> extends Eval<A> {
   }
 
   @Override
-  public A run() {
+  public Either<E, A> run() {
     return morph.get().run();
   }
 
   @Override
-  public Eval<A> step() {
+  public Eval<E, A> step() {
     return morph.get();
   }
 
   @Override
-  public <B> Eval<B> map(Function<A, B> f) {
-    return new Stepper<B>(() -> this.morph.get().map(f));
+  public <B> Eval<E, B> map(Function<A, B> f) {
+    return new Stepper<E, B>(() -> this.morph.get().map(f));
   }
 
   @Override
-  public <B> Eval<B> flatMap(Function<A, Eval<B>> fa) {
-    return new Stepper<B>(() -> this.morph.get().flatMap(fa));
+  public <B> Eval<E, B> flatMap(Function<A, Eval<E, B>> fa) {
+    return new Stepper<E, B>(() -> this.morph.get().flatMap(fa));
   }
 
   @Override
-  public Eval<A> foreach(Consumer<A> f) {
+  public Eval<E, A> foreach(Consumer<A> f) {
     return new Stepper<>(() -> this.morph.get().foreach(f));
   }
 }

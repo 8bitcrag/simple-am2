@@ -4,22 +4,22 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-public class Later<A> extends Eval<A> {
+public class Later<E, A> extends Eval<E, A> {
 
-  private Supplier<A> r;
+  private Supplier<Either<E, A>> r;
 
-  public Later(Supplier<A> op) {
+  public Later(Supplier<Either<E, A>> op) {
     this.r = op;
   }
 
   @Override
-  public A run() {
+  public Either<E, A> run() {
     return this.r.get();
   }
 
   @Override
-  public Eval<A> step() {
-    return new Now<A>(this.run());
+  public Eval<E, A> step() {
+    return new Now<>(this.run());
   }
 
   @Override
@@ -31,27 +31,26 @@ public class Later<A> extends Eval<A> {
     return false;
   }
 
-  public <B> Eval<B> map(Function<A, B> f) {
-    return new Later<B>(() -> f.apply(this.run()));
+  public <B> Eval<E, B> map(Function<A, B> f) {
+    return new Later<>(() -> this.run().map(f));
   }
 
-  public <B> Eval<B> flatMap(Function<A, Eval<B>> fa) {
-    return new Stepper<B>(() -> {
-      Eval<B> eb = fa.apply(this.run());
-      if (eb.isLater()) {
-        return eb;
+  public <B> Eval<E, B> flatMap(Function<A, Eval<E, B>> fa) {
+    return new Stepper<>(() -> {
+      Either<E, A> ea = this.run();
+      if (ea.isGood()) {
+        return fa.apply(ea.getValue());
       } else {
-        return eb;
+        return new Now<>(new Bad<>(ea.getErrorValue()));
       }
     });
   }
 
   @Override
-  public Eval<A> foreach(Consumer<A> f) {
+  public Eval<E, A> foreach(Consumer<A> f) {
     return new Later<>(() -> {
-      A a = this.run();
-      f.accept(a);
-      return a;
+      Either<E, A> ea = this.run();
+      return ea.foreach(f);
     });
   }
 }

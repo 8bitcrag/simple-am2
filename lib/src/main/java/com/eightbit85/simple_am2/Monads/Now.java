@@ -3,21 +3,21 @@ package com.eightbit85.simple_am2.Monads;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class Now<A> extends Eval<A> {
+public class Now<E, A> extends Eval<E, A> {
 
-  private A r;
+  private Either<E, A> r;
 
-  public Now(A a) {
+  public Now(Either<E, A> a) {
     this.r = a;
   }
 
   @Override
-  public A run() {
+  public Either<E, A> run() {
     return this.r;
   }
 
   @Override
-  public Eval<A> step() {
+  public Eval<E, A> step() {
     return this;
   }
 
@@ -32,18 +32,21 @@ public class Now<A> extends Eval<A> {
   }
 
   @Override
-  public <B> Eval<B> map(Function<A, B> f) {
-    return new Now(f.apply(this.r));
+  public <B> Eval<E, B> map(Function<A, B> f) {
+    return new Now(this.r.map(f));
   }
 
   @Override
-  public <B> Eval<B> flatMap(Function<A, Eval<B>> fa) {
-    return fa.apply(this.r);
+  public <B> Eval<E, B> flatMap(Function<A, Eval<E, B>> fa) {
+    if (this.r.isGood()) {
+      return fa.apply(this.r.getValue());
+    } else {
+      return new Now<>(new Bad<>(this.r.getErrorValue()));
+    }
   }
 
   @Override
-  public Eval<A> foreach(Consumer<A> f) {
-    f.accept(this.r);
-    return this;
+  public Eval<E, A> foreach(Consumer<A> f) {
+    return new Now<>(this.r.foreach(f));
   }
 }
