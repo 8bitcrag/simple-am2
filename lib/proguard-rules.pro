@@ -21,3 +21,5 @@
 #-renamesourcefileattribute SourceFile
 
 -keep class com.eightbit85.simple_am2.* {*;}
+-keep class com.eightbit85.simple_am2.internal.TaskCoordinator {*;}
+-keep class com.eightbit85.simple_am2.internal.MediaTask {*;}

@@ -37,7 +37,7 @@ import static androidx.media2.common.BaseResult.RESULT_SUCCESS;
 
 public class SimpleAudioPlayer extends SessionPlayer implements TaskCoordinator.BufferListener {
 
-  interface SessionPlayerCallbackNotifier {
+  public interface SessionPlayerCallbackNotifier {
     void callCallback(PlayerCallback callback);
   }
 
