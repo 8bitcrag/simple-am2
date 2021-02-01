@@ -60,7 +60,50 @@ Because it implements `SessionPlayer`, simple-am2 can be used anywhere you would
 If something important is missing from this list, please create an issue!
 
 ## Extending
-`*TODO* Fill out the new monadic instructions.`
+Extending functionality can be done using the `MediaTask` monad to generate custom programs and then submit them for processing using `taskCoordinator.submit(MediaTask<Integer, PlayerResult> mediaTask)`. This functionality is a little tricky to motivate so a contrived example will be used to demonstrate.
+
+Let's say you want a button that causes the player to seek to a certain point and pause. You could use listeners on the futures to chain instructions, but what if another thread/app/service on the device submits a request while you're waiting? The seek instruction waits for an event in order to complete, giving another oppertunity for problems. You *could* send the instructions one after the other like this:
+```java
+  taskCoordinator.submit(taskCoordinator.seekTo(3000L));
+  return taskCoordinator.submit(taskCoordinator.pause());
+```
+But it *still* doesn't guarentee the order, and what happens if the first one fails, or produces a result you need to work with? What if you only want to seek if the track is already past `3000`? This is where the `MediaTask` comes in.
+
+The `flatMap` method allows you to work with the result of the previous instruction, and submit a new one that will be executed straight after without interruption.
+```java
+taskCoordinator.seekTo(3000L)
+.flatMap(pr -> { // 'pr' is the PlayerResult of the seekTo 
+  notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, 6000)); // notify the system the seek finished
+  if (taskCoordinator.getCurrentPosition() > 3000) return taskCoordinator.pause().foreach(x -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+  else return MediaTask.pure(pr);
+});
+```
+Here the function passed to `flatMap` produces another `MediaTask`, which either pauses the playback or just returns result of `seekTo`. The `foreach` function provides a way to specify any side-effects, in this case updating the state to paused. The `pure` function just elevates a value in to a plain `MediaTask`. 
+
+It's also worth noting that if the `seekTo` instruction fails, the sequence short circuits. The `flatMap` instructions will not be executed and the `PlayerResult` containing the error information for `seekTo` will be returned.
+
+Now let's get more complex. Let's say you sometimes want to play a trick on your users and add an extra step to the sequence that picks a random volume.
+
+```java
+private MediaTask<Integer, PlayerResult> sap = taskCoordinator.seekTo(3000L)
+  .flatMap(pr -> {
+    notifySessionPlayerCallback(callback -> callback.onSeekCompleted(this, 6000));
+    if (taskCoordinator.getCurrentPosition() > 3000) return taskCoordinator.pause().foreach(x -> changeState(SessionPlayer.PLAYER_STATE_PAUSED));
+    else return MediaTask.pure(pr);
+  });
+
+public ListenableFuture<PlayerResult> seekAndPause() {
+  return taskCoordinator.submit(sap);
+}
+
+public void trick() {
+  sap = sap.flatMap(pr -> {
+    float v = new Random().nextFloat();
+    return taskCoordinator.setVolume(v);
+  });
+}
+```
+Here the seek and pause sequence is being stored as a variable, and the `trick()` method updates the sequence with an extra step to randomise the volume. In this way `MediaTask` can be thought of as a way to build mini programs that you can run on the player at will.
 
 ## Contributing
 Pull requests and issues are welcome.
